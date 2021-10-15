@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ==== #29. mapper 기본설정 ==== -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- ==== #29. 루트 엘리먼트 & 네임스페이스 설정(프로젝트 전체내에서 유일해야 한다.) ==== -->
+<mapper namespace="emp">
+	
+	<select id="deptIdList" resultType="String">
+		select distinct nvl(department_id, -9999) as department_id 
+		from employees 
+		order by department_id
+	</select>
+	
+	
+	<resultMap type="HashMap" id="empDeptMap">
+		<result property="department_id" 	column="department_id" 		javaType="String" />
+		<result property="department_name" 	column="department_name" 	javaType="String" />
+		<result property="employee_id" 		column="employee_id" 		javaType="String" />
+		<result property="fullname" 		column="fullname" 			javaType="String" />
+		<result property="hire_date" 		column="hire_date" 			javaType="String" />
+		<result property="monthsal" 		column="monthsal" 			javaType="String" />
+		<result property="gender" 			column="gender" 			javaType="String" />
+		<result property="age" 				column="age" 				javaType="String" />
+	</resultMap>
+	<select id="empList" parameterType="HashMap" resultMap="empDeptMap">
+		select E.department_id, D.department_name, E.employee_id, 
+	           E.first_name || ' ' || E.last_name AS fullname,
+	           to_char(E.hire_date, 'yyyy-mm-dd') AS hire_date,
+	           nvl(E.salary + E.salary*E.commission_pct, E.salary) AS monthsal,
+	           func_gender(E.jubun) AS gender,
+	           func_age(E.jubun) AS age 
+	    from employees E left join departments D
+	    on E.department_id = D.department_id
+	    where 1=1 
+	    <if test="deptIdArr != null">
+	    	and nvl(E.department_id, -9999) in 
+	    	<foreach collection="deptIdArr" index="i" open="(" separator="," close=")">
+	    		'${deptIdArr[i]}'
+	    	</foreach>
+	    </if>
+	    <if test="gender != null">
+	        and func_gender(E.jubun) = #{gender} 
+	    </if>
+	    order by E.department_id, E.employee_id
+	</select>
+
+
+	<resultMap type="HashMap" id="employeeCntByDeptnameMap">
+		<result property="department_name" column="department_name" javaType="String"/>
+		<result property="cnt" column="cnt" javaType="String"/>
+		<result property="percentage" column="percentage" javaType="String"/>
+	</resultMap>
+	<select id="employeeCntByDeptname" resultMap="employeeCntByDeptnameMap">
+		select nvl(D.department_name, '부서없음') AS department_name
+		     , count(*) AS cnt 
+		     , round(count(*) / (select count(*) from employees) * 100, 2) AS percentage 
+		from employees E left join departments D 
+		on E.department_id = D.department_id 
+		group by nvl(D.department_name, '부서없음')
+		order by department_name
+	</select>
+
+	<resultMap type="HashMap" id="employeeCntByGenderMap">
+		<result property="gender" column="gender" javaType="String"/>
+		<result property="cnt" column="cnt" javaType="String"/>
+		<result property="percentage" column="percentage" javaType="String"/>
+	</resultMap>
+	<select id="employeeCntByGender" resultMap="employeeCntByGenderMap">
+		select func_gender(jubun) as gender
+	        , count(*) as cnt
+	        , round(count(*) / (select count(*) from employees) * 100, 2) as percentage
+		from employees
+		group by func_gender(jubun)
+	</select>
+
+	<!-- <resultMap type="HashMap" id="employeeCntByGenderMap">
+      <result property="gender"       column="gender"     javaType="String"/>
+      <result property="cnt"          column="cnt"        javaType="String"/>
+      <result property="percentage"    column="percentage" javaType="String"/>
+   </resultMap> -->
+	<select id="genderCntSpecialDeptname" parameterType="HashMap" resultMap="employeeCntByGenderMap">
+       <if test="deptname != '부서없음'">
+	       select func_gender(jubun) AS gender 
+	            , count(*) AS cnt
+	            , round( count(*)/(select count(*) from employees where department_id = ( select department_id from departments where department_name = #{deptname} ) )*100, 2 ) AS percentage 
+	       from employees E left join departments D 
+	       on E.department_id = D.department_id 
+	       where D.department_name = #{deptname}
+	       group by func_gender(jubun)
+	       order by gender
+       </if>
+       
+       <if test="deptname == '부서없음'">
+	       select func_gender(jubun) AS gender 
+	            , count(*) AS cnt
+	            , round( count(*)/(select count(*) from employees where department_id is null )*100, 2 ) AS percentage 
+	       from employees E left join departments D 
+	       on E.department_id = D.department_id 
+	       where D.department_name is null 
+	       group by func_gender(jubun)
+	       order by gender
+       </if>
+   </select>
+</mapper>
